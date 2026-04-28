@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: JetBrains Mono;
+  --font-sans: Inter;
   --font-mono: JetBrains Mono;
   --font-serif: JetBrains Mono;
   --radius: 0.5rem;
@@ -16,7 +16,7 @@
   --tracking-wide: calc(var(--tracking-normal) + 0.025em);
   --tracking-wider: calc(var(--tracking-normal) + 0.05em);
   --tracking-widest: calc(var(--tracking-normal) + 0.1em);
-  --font-heading: var(--font-mono);
+  --font-heading: var(--font-sans);
   --tracking-normal: var(--tracking-normal);
   --shadow-2xl: var(--shadow-2xl);
   --shadow-xl: var(--shadow-xl);
@@ -74,8 +74,6 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.1450 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.1450 0 0);
   --popover: oklch(1 0 0);
@@ -127,6 +125,8 @@
   --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 8px 10px -1px hsl(0 0% 0% / 0.10);
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
   --tracking-normal: 0em;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.1450 0 0);
 }
 
 .dark {
@@ -193,6 +193,6 @@
     @apply border-border outline-ring/50;
   }
   html {
-    @apply font-mono;
+    @apply font-sans;
   }
 }
