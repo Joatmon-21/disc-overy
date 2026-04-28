@@ -43,7 +43,7 @@ export default function Page() {
             <p className="font-sans font-black tracking-tighter uppercase text-9xl">
               YOUR PULSE.
             </p>
-            <div className="grid grid-cols-5 w-full py-15">
+            <div className="grid grid-cols-5 w-full py-15 gap-y-5">
               <div className="col-span-1 flex justify-center items-center">
                 <div className="group relative w-full max-w-[280px] rounded-xl bg-zinc-900/40 p-4 transition-all duration-300 hover:bg-zinc-800/60 hover:shadow-2xl hover:shadow-purple-500/20 border border-white/5">
                   <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg">
@@ -110,7 +110,7 @@ export default function Page() {
                 </div>
               </div>
 
-                  <div className="col-span-1 flex justify-center items-center">
+              <div className="col-span-1 flex justify-center items-center">
                 <div className="group relative w-full max-w-[280px] rounded-xl bg-zinc-900/40 p-4 transition-all duration-300 hover:bg-zinc-800/60 hover:shadow-2xl hover:shadow-purple-500/20 border border-white/5">
                   <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg">
                     <img
@@ -143,7 +143,7 @@ export default function Page() {
                 </div>
               </div>
 
-                  <div className="col-span-1 flex justify-center items-center">
+              <div className="col-span-1 flex justify-center items-center">
                 <div className="group relative w-full max-w-[280px] rounded-xl bg-zinc-900/40 p-4 transition-all duration-300 hover:bg-zinc-800/60 hover:shadow-2xl hover:shadow-purple-500/20 border border-white/5">
                   <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg">
                     <img
@@ -176,7 +176,7 @@ export default function Page() {
                 </div>
               </div>
 
-                  <div className="col-span-1 flex justify-center items-center">
+              <div className="col-span-1 flex justify-center items-center">
                 <div className="group relative w-full max-w-[280px] rounded-xl bg-zinc-900/40 p-4 transition-all duration-300 hover:bg-zinc-800/60 hover:shadow-2xl hover:shadow-purple-500/20 border border-white/5">
                   <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg">
                     <img
@@ -209,6 +209,38 @@ export default function Page() {
                 </div>
               </div>
 
+              <div className="col-span-1 flex justify-center items-center">
+                <div className="group relative w-full max-w-[280px] rounded-xl bg-zinc-900/40 p-4 transition-all duration-300 hover:bg-zinc-800/60 hover:shadow-2xl hover:shadow-purple-500/20 border border-white/5">
+                  <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg">
+                    <img
+                      src="https://t2.genius.com/unsafe/344x344/https%3A%2F%2Fimages.genius.com%2F3d85fa8cce34b62aed084fb8848486e3.1000x1000x1.png"
+                      alt="Ere"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+
+                    <div className="absolute bottom-2 right-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary opacity-0 shadow-xl transition-all duration-300 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-105 active:scale-95">
+                      <svg
+                        fill="black"
+                        viewBox="0 0 24 24"
+                        className="w-6 h-6 ml-1"
+                      >
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-1">
+                    <h3 className="truncate font-sans text-lg font-bold tracking-tight text-white">
+                      Ere
+                    </h3>
+                    <p className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                      Juan Karlos
+                    </p>
+                  </div>
+
+                  <div className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-br from-purple-600/0 to-purple-600/0 opacity-0 blur-xl transition-opacity duration-500 group-hover:from-purple-600/20 group-hover:opacity-100" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
