@@ -401,9 +401,8 @@ export default function Page() {
     setCurrentTime(parseFloat(e.target.value));
   };
 
-  const handleSeekCommit = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const t = parseFloat(e.target.value);
-    if (audioRef.current) audioRef.current.currentTime = t;
+  const handleSeekCommit = () => {
+    if (audioRef.current) audioRef.current.currentTime = currentTime;
     setIsSeeking(false);
   };
 
