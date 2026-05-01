@@ -18,6 +18,9 @@ import {
   MessageSquare,
   Volume2,
   VolumeX,
+  Heart,
+  Users,
+  X,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase"; 
@@ -48,6 +51,12 @@ interface Playlist {
   id: number;
   name: string;
   user_id: string;
+}
+
+interface SoulmateMatch {
+  username: string;
+  matchPercent: number;
+  commonSongs: string[];
 }
 
 export default function Page() {
@@ -87,6 +96,12 @@ export default function Page() {
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
 
+  // Soulmate
+  const [isDiscoverable, setIsDiscoverable] = useState(false);
+  const [showSoulmate, setShowSoulmate] = useState(false);
+  const [soulmateResults, setSoulmateResults] = useState<SoulmateMatch[]>([]);
+  const [soulmateLoading, setSoulmateLoading] = useState(false);
+
   // 2. DATA FETCHING FUNCTIONS (Defined before effects to avoid hoisting issues)[cite: 3]
   
   const fetchSongs = async () => {
@@ -107,6 +122,7 @@ export default function Page() {
     if (data) {
       setUserId(data.user_id);
       fetchPlaylists(data.user_id);
+      fetchDiscoverable(data.user_id);
     } else console.warn("[fetchUserData] userId not set — user not found in DB or column mismatch");
   };
 
@@ -130,6 +146,106 @@ export default function Page() {
       .eq("user_id", uid)
       .order("id", { ascending: true });
     if (!error && data) setPlaylists(data);
+  };
+
+  const fetchDiscoverable = async (uid: string) => {
+    const { data } = await supabase
+      .from("users")
+      .select("is_discoverable")
+      .eq("user_id", uid)
+      .single();
+    if (data) setIsDiscoverable(data.is_discoverable ?? false);
+  };
+
+  const toggleDiscoverable = async () => {
+    if (!userId) return;
+    const next = !isDiscoverable;
+    const { error } = await supabase
+      .from("users")
+      .update({ is_discoverable: next })
+      .eq("user_id", userId);
+    if (!error) setIsDiscoverable(next);
+  };
+
+  const findSoulmates = async () => {
+    if (!userId) return;
+    setSoulmateLoading(true);
+    setShowSoulmate(true);
+
+    // 1. Get current user's playlist songs
+    const { data: myPlaylists } = await supabase
+      .from("playlists")
+      .select("id")
+      .eq("user_id", userId);
+
+    const myPlaylistIds = (myPlaylists || []).map((p: any) => p.id);
+    let mySongIds: string[] = [];
+
+    if (myPlaylistIds.length > 0) {
+      const { data: mySongs } = await supabase
+        .from("playlist_songs")
+        .select("song_id")
+        .in("playlist_id", myPlaylistIds);
+      mySongIds = [...new Set((mySongs || []).map((s: any) => String(s.song_id)))];
+    }
+
+    // 2. Get all discoverable users except self
+    const { data: discoverableUsers } = await supabase
+      .from("users")
+      .select("user_id, username")
+      .eq("is_discoverable", true)
+      .neq("user_id", userId);
+
+    if (!discoverableUsers || discoverableUsers.length === 0) {
+      setSoulmateResults([]);
+      setSoulmateLoading(false);
+      return;
+    }
+
+    // 3. For each discoverable user, get their playlist songs and compute match
+    const results: SoulmateMatch[] = [];
+
+    for (const other of discoverableUsers) {
+      const { data: theirPlaylists } = await supabase
+        .from("playlists")
+        .select("id")
+        .eq("user_id", other.user_id);
+
+      const theirPlaylistIds = (theirPlaylists || []).map((p: any) => p.id);
+      let theirSongIds: string[] = [];
+
+      if (theirPlaylistIds.length > 0) {
+        const { data: theirSongs } = await supabase
+          .from("playlist_songs")
+          .select("song_id")
+          .in("playlist_id", theirPlaylistIds);
+        theirSongIds = [...new Set((theirSongs || []).map((s: any) => String(s.song_id)))];
+      }
+
+      if (theirSongIds.length === 0 && mySongIds.length === 0) continue;
+
+      const commonIds = mySongIds.filter(id => theirSongIds.includes(id));
+      const union = [...new Set([...mySongIds, ...theirSongIds])];
+      const matchPercent = union.length === 0 ? 0 : Math.round((commonIds.length / union.length) * 100);
+
+      // Fetch song names for common songs
+      let commonSongs: string[] = [];
+      if (commonIds.length > 0) {
+        const { data: commonSongData } = await supabase
+          .from("music_vault")
+          .select("name")
+          .in("id", commonIds)
+          .limit(3);
+        commonSongs = (commonSongData || []).map((s: any) => s.name);
+      }
+
+      results.push({ username: other.username, matchPercent, commonSongs });
+    }
+
+    // Sort by best match
+    results.sort((a, b) => b.matchPercent - a.matchPercent);
+    setSoulmateResults(results);
+    setSoulmateLoading(false);
   };
 
   const fetchPlaylistSongs = async (playlistId: number) => {
@@ -387,10 +503,32 @@ export default function Page() {
         </nav>
 
         <div className="py-5 grid grid-cols-12 w-full">          
-          <div className="col-span-2 flex justify-center py-5">
-            <p className="uppercase tracking-tighter text-center text-xs text-zinc-500 font-bold leading-relaxed">
-              Pulse Syncing <br /> Find Your Music Soulmate
-            </p>
+          <div className="col-span-2 flex flex-col items-center py-5 px-3 gap-6">
+            {/* Discoverable toggle */}
+            <div className="w-full flex flex-col items-center gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center">Pulse Visibility</p>
+              <button
+                onClick={toggleDiscoverable}
+                className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${isDiscoverable ? 'bg-primary' : 'bg-zinc-700'}`}
+              >
+                <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ${isDiscoverable ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+              <p className={`text-[8px] font-black uppercase tracking-widest transition-colors ${isDiscoverable ? 'text-primary' : 'text-zinc-600'}`}>
+                {isDiscoverable ? 'Visible' : 'Hidden'}
+              </p>
+              <p className="text-[8px] text-zinc-600 text-center leading-relaxed">
+                {isDiscoverable ? 'Others can find you as a soulmate' : 'You are hidden from soulmate search'}
+              </p>
+            </div>
+
+            {/* Find soulmates button */}
+            <button
+              onClick={findSoulmates}
+              className="w-full flex flex-col items-center gap-2 p-4 rounded-2xl bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all group"
+            >
+              <Heart size={20} className="text-primary group-hover:scale-110 transition-transform" />
+              <p className="text-[8px] font-black uppercase tracking-widest text-primary text-center">Find Music Soulmate</p>
+            </button>
           </div>
           
           <div className="col-span-8 py-5 px-25 border-x border-white/5 min-h-screen">
@@ -554,6 +692,71 @@ export default function Page() {
         </div>
       </main>
       
+      {/* SOULMATE OVERLAY */}
+      {showSoulmate && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <Heart size={18} className="text-primary" />
+                <p className="text-sm font-black uppercase tracking-widest">Music Soulmates</p>
+              </div>
+              <button onClick={() => setShowSoulmate(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto no-scrollbar">
+              {soulmateLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Heart size={32} className="text-primary animate-pulse" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Scanning the vault...</p>
+                </div>
+              ) : soulmateResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Users size={32} className="text-zinc-700" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">No discoverable users found</p>
+                  <p className="text-[9px] text-zinc-600 text-center">Ask your friends to turn on Pulse Visibility!</p>
+                </div>
+              ) : (
+                soulmateResults.map((match, i) => (
+                  <div key={match.username} className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-primary/20 transition-all">
+                    {/* Rank */}
+                    <span className="text-[9px] font-black text-zinc-600 w-4 shrink-0">#{i + 1}</span>
+                    {/* Avatar placeholder */}
+                    <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-black text-primary uppercase">{match.username[0]}</span>
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black uppercase tracking-wider truncate">{match.username}</p>
+                      {match.commonSongs.length > 0 && (
+                        <p className="text-[8px] text-zinc-500 truncate mt-0.5">
+                          {match.commonSongs.join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                    {/* Match % */}
+                    <div className="flex flex-col items-end shrink-0 gap-1">
+                      <span className="text-sm font-black text-primary">{match.matchPercent}%</span>
+                      <div className="w-16 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${match.matchPercent}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer note */}
+            <div className="px-6 py-4 border-t border-white/5">
+              <p className="text-[8px] text-zinc-600 text-center uppercase tracking-widest">Match is based on overlapping playlist songs using Jaccard similarity</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* FULL PLAYER OVERLAY */}
       <div className={`fixed inset-0 z-50 bg-black transition-transform duration-500 ease-in-out ${showFullPlayer ? "translate-y-0" : "translate-y-full"}`}>
         <div className="h-full w-full flex flex-col p-10 max-w-7xl mx-auto">
