@@ -160,15 +160,23 @@ export default function Page() {
   const toggleDiscoverable = async () => {
     if (!userId) return;
     const next = !isDiscoverable;
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from("users")
       .update({ is_discoverable: next })
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select();
     if (!error) setIsDiscoverable(next);
+    else console.error("toggleDiscoverable error:", error);
+    console.log("[toggleDiscoverable] userId:", userId, "next:", next, "data:", data, "error:", error);
   };
 
   const findSoulmates = async () => {
     if (!userId) return;
+    if (!isDiscoverable) {
+      setShowSoulmate(true);
+      setSoulmateResults([]);
+      return;
+    }
     setSoulmateLoading(true);
     setShowSoulmate(true);
 
@@ -222,7 +230,7 @@ export default function Page() {
         theirSongIds = [...new Set((theirSongs || []).map((s: any) => String(s.song_id)))];
       }
 
-      if (theirSongIds.length === 0 && mySongIds.length === 0) continue;
+      if (theirSongIds.length === 0 || mySongIds.length === 0) continue;
 
       const commonIds = mySongIds.filter(id => theirSongIds.includes(id));
       const union = [...new Set([...mySongIds, ...theirSongIds])];
@@ -293,13 +301,15 @@ export default function Page() {
       fetchUserData(savedUser);
       fetchSongs();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // Fetch comments whenever the active song changes[cite: 4]
+  // Fetch comments whenever the active song changes
   useEffect(() => {
     if (currentSong) {
       fetchComments(currentSong.id);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong]);
 
   // 4. ACTION HANDLERS
@@ -436,10 +446,15 @@ export default function Page() {
   };
 
   const handleDeletePlaylist = async (id: number) => {
+    // Delete child rows first to satisfy foreign key constraint
+    const { error: songsError } = await supabase.from("playlist_songs").delete().eq("playlist_id", id);
+    if (songsError) { console.error("Error deleting playlist songs:", songsError); return; }
     const { error } = await supabase.from("playlists").delete().eq("id", id);
     if (!error) {
       fetchPlaylists(userId!);
       if (activePlaylist?.id === id) handleClosePlaylist();
+    } else {
+      console.error("Error deleting playlist:", error);
     }
   };
 
@@ -715,8 +730,17 @@ export default function Page() {
               ) : soulmateResults.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <Users size={32} className="text-zinc-700" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">No discoverable users found</p>
-                  <p className="text-[9px] text-zinc-600 text-center">Ask your friends to turn on Pulse Visibility!</p>
+                  {!isDiscoverable ? (
+                    <>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">Pulse Visibility is off</p>
+                      <p className="text-[9px] text-zinc-600 text-center">Turn on Pulse Visibility to find your music soulmate!</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">No discoverable users found</p>
+                      <p className="text-[9px] text-zinc-600 text-center">Ask your friends to turn on Pulse Visibility!</p>
+                    </>
+                  )}
                 </div>
               ) : (
                 soulmateResults.map((match, i) => (
