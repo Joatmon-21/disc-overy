@@ -21,6 +21,8 @@ import {
   Heart,
   Users,
   X,
+  Menu,
+  ListMusic,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase"; 
@@ -95,6 +97,10 @@ export default function Page() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+
+  // Mobile
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"songs" | "playlists" | "soulmate">("songs");
 
   // Soulmate
   const [isDiscoverable, setIsDiscoverable] = useState(false);
@@ -486,10 +492,14 @@ export default function Page() {
       )
     : songs;
 
+  // ── Reusable panel components ──────────────────────────────
+
   return (
     <div className="relative min-h-screen bg-black text-white overflow-x-hidden selection:bg-primary/30">
-      <main className={`${showFullPlayer ? "opacity-0 pointer-events-none" : "opacity-100"} transition-opacity duration-300`}>        
-        <nav className="flex items-center justify-between h-24 gap-2 px-10 border-b border-border">
+      <main className={`${showFullPlayer ? "opacity-0 pointer-events-none" : "opacity-100"} transition-opacity duration-300`}>
+
+        {/* ── DESKTOP NAV ─────────────────────────────────────── */}
+        <nav className="hidden md:flex items-center justify-between h-24 gap-2 px-10 border-b border-border">
           <div className="flex shrink-0 items-center gap-2 text-xl font-bold">
             <Disc className="w-10 h-10 text-primary animate-spin-slow" />
             <span className="italic uppercase tracking-tighter">Disc-Overy</span>
@@ -507,202 +517,435 @@ export default function Page() {
               />
             </div>
           </div>
-          
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{user}</span>
             <button onClick={handleLogout} className="flex items-center justify-center w-10 h-10 bg-primary rounded-full text-black hover:scale-105 active:scale-95 transition-transform">
-               <LogOut className="w-4 h-4" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </nav>
 
-        <div className="py-5 grid grid-cols-12 w-full">          
-          <div className="col-span-2 flex flex-col items-center py-5 px-3 gap-6">
-            {/* Discoverable toggle */}
-            <div className="w-full flex flex-col items-center gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center">Pulse Visibility</p>
-              <button
-                onClick={toggleDiscoverable}
-                className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${isDiscoverable ? 'bg-primary' : 'bg-zinc-700'}`}
-              >
-                <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ${isDiscoverable ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-              <p className={`text-[8px] font-black uppercase tracking-widest transition-colors ${isDiscoverable ? 'text-primary' : 'text-zinc-600'}`}>
-                {isDiscoverable ? 'Visible' : 'Hidden'}
-              </p>
-              <p className="text-[8px] text-zinc-600 text-center leading-relaxed">
-                {isDiscoverable ? 'Others can find you as a soulmate' : 'You are hidden from soulmate search'}
-              </p>
-            </div>
-
-            {/* Find soulmates button */}
-            <button
-              onClick={findSoulmates}
-              className="w-full flex flex-col items-center gap-2 p-4 rounded-2xl bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all group"
-            >
-              <Heart size={20} className="text-primary group-hover:scale-110 transition-transform" />
-              <p className="text-[8px] font-black uppercase tracking-widest text-primary text-center">Find Music Soulmate</p>
+        {/* ── MOBILE NAV ──────────────────────────────────────── */}
+        <nav className="md:hidden flex items-center justify-between h-16 px-4 border-b border-border sticky top-0 bg-black/90 backdrop-blur-md z-40">
+          <div className="flex items-center gap-2 text-base font-bold">
+            <Disc className="w-7 h-7 text-primary animate-spin-slow" />
+            <span className="italic uppercase tracking-tighter">Disc-Overy</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{user}</span>
+            <button onClick={handleLogout} className="flex items-center justify-center w-8 h-8 bg-primary rounded-full text-black">
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
-          
-          <div className="col-span-8 py-5 px-25 border-x border-white/5 min-h-screen">
-            {activePlaylist ? (
-              <>
-                <button onClick={handleClosePlaylist} className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors mb-6 group">
-                  <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">All Songs</span>
-                </button>
-                <p className="font-sans text-primary tracking-tighter uppercase text-2xl drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]">
-                  Collection
-                </p>
-                <p className="font-sans font-black tracking-tighter uppercase text-9xl leading-none">
-                  {activePlaylist.name.toUpperCase()}
-                </p>
-                {playlistSongs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-32 gap-3">
-                    <Music2 className="w-12 h-12 text-zinc-700" />
-                    <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">No Songs in Playlist</p>
-                    <p className="text-zinc-700 text-[10px]">Add songs from the main vault</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 w-full py-15 gap-8">
-                    {playlistSongs.map((song) => (
-                      <div key={song.id} onClick={() => handleCardClick(song)} className="group relative w-full rounded-xl bg-zinc-900/40 p-4 transition-all duration-300 hover:bg-zinc-800/60 border border-white/5 cursor-pointer">
-                        <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg bg-zinc-800">
-                          {song.cover_path ? (
-                            <img src={song.cover_path} alt={song.name} className="absolute inset-0 w-full h-full object-cover" />
-                          ) : (
-                            <Music2 className="absolute inset-0 m-auto w-12 h-12 text-zinc-700 group-hover:text-primary transition-colors" />
-                          )}
-                          <div
-                            onClick={(e) => togglePlay(song, e)}
-                            className={`absolute bottom-2 right-2 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-primary shadow-xl transition-all duration-300 ${currentSong?.id === song.id ? 'opacity-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'} hover:scale-105 active:scale-95 text-black`}
-                          >
-                            {currentSong?.id === song.id && isPlaying ? <Pause className="fill-black w-5 h-5" /> : <Play className="fill-black w-5 h-5 ml-1" />}
-                          </div>
-                        </div>
-                        <div className="mt-4">
-                          <h3 className="truncate font-bold text-white tracking-tight">{song.name}</h3>
-                          <p className="text-sm text-zinc-400 tracking-tighter font-medium">{song.artist}</p>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleRemoveFromPlaylist(song.id); }}
-                            className="mt-2 text-[9px] font-black uppercase tracking-widest text-zinc-600 hover:text-red-500 transition-colors flex items-center gap-1"
-                          >
-                            <Trash2 size={10} /> Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="font-sans text-primary tracking-tighter uppercase text-2xl drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]">
-                  Daily Discovery
-                </p>
-                <p className="font-sans font-black tracking-tighter uppercase text-9xl leading-none">
-                  YOUR PULSE.
-                </p>
-                {displayedSongs.length === 0 && searchQuery ? (
-                  <div className="flex flex-col items-center justify-center py-32 gap-3">
-                    <Search className="w-12 h-12 text-zinc-700" />
-                    <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">No results for "{searchQuery}"</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 w-full py-15 gap-8 content-start">              
-                    {displayedSongs.map((song) => (
-                      <div key={song.id} onClick={() => handleCardClick(song)} className="group relative w-full rounded-xl bg-zinc-900/40 p-4 transition-all duration-300 hover:bg-zinc-800/60 border border-white/5 cursor-pointer">
-                        <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg bg-zinc-800">
-                          {song.cover_path ? (
-                            <img src={song.cover_path} alt={song.name} className="absolute inset-0 w-full h-full object-cover" />
-                          ) : (
-                            <Music2 className="absolute inset-0 m-auto w-12 h-12 text-zinc-700 group-hover:text-primary transition-colors" />
-                          )}
-                          <div 
-                            onClick={(e) => togglePlay(song, e)} 
-                            className={`absolute bottom-2 right-2 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-primary shadow-xl transition-all duration-300 ${currentSong?.id === song.id ? 'opacity-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'} hover:scale-105 active:scale-95 text-black`}
-                          >
-                            {currentSong?.id === song.id && isPlaying ? <Pause className="fill-black w-5 h-5" /> : <Play className="fill-black w-5 h-5 ml-1" />}
-                          </div>
-                        </div>
-                        <div className="mt-4">
-                          <h3 className="truncate font-bold text-white tracking-tight">{song.name}</h3>
-                          <p className="text-sm text-zinc-400 tracking-tighter font-medium">{song.artist}</p>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setAddToPlaylistSongId(addToPlaylistSongId === song.id ? null : song.id); }}
-                            className="mt-2 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-primary transition-colors flex items-center gap-1"
-                          >
-                            <Plus size={10} /> Add to Playlist
-                          </button>
-                          {addToPlaylistSongId === song.id && (
-                            <div className="absolute bottom-full left-0 right-0 mb-2 bg-zinc-900 border border-white/10 rounded-xl p-2 z-10 shadow-xl">
-                              {playlists.length === 0 ? (
-                                <p className="text-[9px] text-zinc-500 text-center py-1">No playlists yet</p>
-                              ) : (
-                                playlists.map((pl) => (
-                                  <button
-                                    key={pl.id}
-                                    onClick={(e) => { e.stopPropagation(); handleAddToPlaylist(pl.id); }}
-                                    className="w-full text-left text-[10px] px-2 py-1.5 rounded hover:bg-white/5 text-zinc-300 hover:text-white transition-colors truncate"
-                                  >
-                                    {pl.name}
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}              
-                  </div>
-                )}
-              </>
-            )}
+        </nav>
+
+        {/* ── MOBILE SEARCH BAR ───────────────────────────────── */}
+        <div className="md:hidden px-4 py-3 border-b border-white/5">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-primary transition-colors" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); handleClosePlaylist(); setMobileTab("songs"); }}
+              placeholder="Search the vault..."
+              className="w-full bg-white/5 border border-white/10 rounded-full pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* ── MOBILE TAB BAR ──────────────────────────────────── */}
+        <div className="md:hidden flex border-b border-white/5 sticky top-16 bg-black/90 backdrop-blur-md z-30">
+          {([
+            { id: "songs", label: "Songs", icon: <Music2 size={16} /> },
+            { id: "playlists", label: "Playlists", icon: <ListMusic size={16} /> },
+            { id: "soulmate", label: "Soulmate", icon: <Heart size={16} /> },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setMobileTab(tab.id)}
+              className={`flex-1 flex flex-col items-center gap-1 py-3 text-[9px] font-black uppercase tracking-widest transition-colors border-b-2 ${mobileTab === tab.id ? 'text-primary border-primary' : 'text-zinc-600 border-transparent'}`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── DESKTOP LAYOUT ──────────────────────────────────── */}
+        <div className="hidden md:grid py-5 grid-cols-12 w-full">
+          <div className="col-span-2 flex flex-col items-center py-5 px-3 gap-6">
+    <div className="flex flex-col gap-4 w-full">
+      <div className="w-full flex flex-col items-center gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/5">
+        <p className="text-xs font-black uppercase tracking-widest text-zinc-400 text-center">Pulse Visibility</p>
+        <button
+          onClick={toggleDiscoverable}
+          className={`relative w-16 h-8 rounded-full transition-colors duration-300 ${isDiscoverable ? 'bg-primary' : 'bg-zinc-700'}`}
+        >
+          <span className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow transition-transform duration-300 ${isDiscoverable ? 'translate-x-8' : 'translate-x-0'}`} />
+        </button>
+        <p className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isDiscoverable ? 'text-primary' : 'text-zinc-600'}`}>
+          {isDiscoverable ? 'Visible' : 'Hidden'}
+        </p>
+        <p className="text-[10px] text-zinc-500 text-center leading-relaxed">
+          {isDiscoverable ? 'Others can find you as a soulmate' : 'You are hidden from soulmate search'}
+        </p>
+      </div>
+      <button
+        onClick={findSoulmates}
+        className="w-full flex flex-col items-center gap-3 p-5 rounded-2xl bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all group"
+      >
+        <Heart size={26} className="text-primary group-hover:scale-110 transition-transform" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center leading-relaxed">Find Music<br/>Soulmate</p>
+      </button>
+    </div>
           </div>
           
-          <div className="col-span-2 py-8 px-6 sticky top-0 h-screen flex flex-col">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-6 text-center">My Collections</h3>
-            <div className="relative mb-8">
-              <input 
-                type="text"
-                value={newPlaylistName}
-                onChange={(e) => setNewPlaylistName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
-                placeholder="New Playlist..."
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-3 pr-10 text-xs focus:border-primary outline-none transition-all"
-              />
-              <button onClick={handleCreatePlaylist} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary">
-                <Plus size={16} />
-              </button>
-            </div>
-            <div className="flex-1 space-y-3 overflow-y-auto no-scrollbar">
-              {playlists.length === 0 && (
-                <p className="text-[9px] text-zinc-600 uppercase tracking-widest text-center mt-4">No collections yet.</p>
-              )}
-              {playlists.map((pl) => (
-                <div key={pl.id} className="group flex flex-col gap-1 p-3 rounded-xl bg-white/[0.03] border border-transparent hover:border-white/10 hover:bg-white/[0.05] transition-all">
-                  {editingPlaylistId === pl.id ? (
-                    <div className="flex items-center gap-2">
-                      <input autoFocus className="bg-black border border-primary/50 rounded px-2 py-1 text-[11px] w-full outline-none" value={editPlaylistValue} onChange={(e) => setEditPlaylistValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && savePlaylistEdit(pl.id)} />
-                      <button onClick={() => savePlaylistEdit(pl.id)} className="text-primary"><Check size={14}/></button>
-                    </div>
+          <div className="col-span-8 py-5 px-10 border-x border-white/5 min-h-screen">
+      <>
+        {activePlaylist ? (
+          <>
+            <button onClick={handleClosePlaylist} className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors mb-6 group">
+              <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-widest">All Songs</span>
+            </button>
+            <p className="font-sans text-primary tracking-tighter uppercase text-xl md:text-2xl drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]">Collection</p>
+            <p className="font-sans font-black tracking-tighter uppercase text-5xl md:text-9xl leading-none mb-6 md:mb-0">
+              {activePlaylist.name.toUpperCase()}
+            </p>
+            {playlistSongs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <Music2 className="w-12 h-12 text-zinc-700" />
+                <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">No Songs in Playlist</p>
+                <p className="text-zinc-700 text-[10px]">Add songs from the main vault</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 w-full py-8 md:py-15 gap-4 md:gap-8">
+                {playlistSongs.map((song) => (
+              <div key={song.id} onClick={() => handleCardClick(song)} className="group relative w-full rounded-xl bg-zinc-900/40 p-3 md:p-4 transition-all duration-300 hover:bg-zinc-800/60 border border-white/5 cursor-pointer">
+                <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg bg-zinc-800">
+                  {song.cover_path ? (
+                    <img src={song.cover_path} alt={song.name} className="absolute inset-0 w-full h-full object-cover" />
                   ) : (
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2 truncate cursor-pointer" onClick={() => handleOpenPlaylist(pl)}>
-                        <Music2 size={12} className={`shrink-0 transition-colors ${activePlaylist?.id === pl.id ? 'text-primary' : 'text-zinc-500'}`} />
-                        <span className={`text-xs font-medium truncate transition-colors ${activePlaylist?.id === pl.id ? 'text-primary' : ''}`}>{pl.name}</span>
-                      </div>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => { setEditingPlaylistId(pl.id); setEditPlaylistValue(pl.name); }} className="text-zinc-500 hover:text-white"><Edit2 size={12}/></button>
-                        <button onClick={() => handleDeletePlaylist(pl.id)} className="text-zinc-500 hover:text-red-500"><Trash2 size={12}/></button>
-                      </div>
+                    <Music2 className="absolute inset-0 m-auto w-8 h-8 md:w-12 md:h-12 text-zinc-700 group-hover:text-primary transition-colors" />
+                  )}
+                  <div
+                    onClick={(e) => togglePlay(song, e)}
+                    className={`absolute bottom-2 right-2 flex h-10 w-10 md:h-12 md:w-12 cursor-pointer items-center justify-center rounded-full bg-primary shadow-xl transition-all duration-300 ${currentSong?.id === song.id ? 'opacity-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'} hover:scale-105 active:scale-95 text-black`}
+                  >
+                    {currentSong?.id === song.id && isPlaying ? <Pause className="fill-black w-4 h-4 md:w-5 md:h-5" /> : <Play className="fill-black w-4 h-4 md:w-5 md:h-5 ml-0.5" />}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <h3 className="truncate font-bold text-white tracking-tight text-sm">{song.name}</h3>
+                  <p className="text-xs text-zinc-400 tracking-tighter font-medium truncate">{song.artist}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRemoveFromPlaylist(song.id); }}
+                    className="mt-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-600 hover:text-red-500 transition-colors flex items-center gap-1"
+                  >
+                    <Trash2 size={9} /> Remove
+                  </button>
+                </div>
+              </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="font-sans text-primary tracking-tighter uppercase text-xl md:text-2xl drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]">Daily Discovery</p>
+            <p className="font-sans font-black tracking-tighter uppercase text-5xl md:text-9xl leading-none">YOUR PULSE.</p>
+            {displayedSongs.length === 0 && searchQuery ? (
+              <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <Search className="w-12 h-12 text-zinc-700" />
+                <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">No results for "{searchQuery}"</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 w-full py-8 md:py-15 gap-4 md:gap-8 content-start">
+                {displayedSongs.map((song) => (
+              <div key={song.id} onClick={() => handleCardClick(song)} className="group relative w-full rounded-xl bg-zinc-900/40 p-3 md:p-4 transition-all duration-300 hover:bg-zinc-800/60 border border-white/5 cursor-pointer">
+                <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg bg-zinc-800">
+                  {song.cover_path ? (
+                    <img src={song.cover_path} alt={song.name} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <Music2 className="absolute inset-0 m-auto w-8 h-8 md:w-12 md:h-12 text-zinc-700 group-hover:text-primary transition-colors" />
+                  )}
+                  <div
+                    onClick={(e) => togglePlay(song, e)}
+                    className={`absolute bottom-2 right-2 flex h-10 w-10 md:h-12 md:w-12 cursor-pointer items-center justify-center rounded-full bg-primary shadow-xl transition-all duration-300 ${currentSong?.id === song.id ? 'opacity-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'} hover:scale-105 active:scale-95 text-black`}
+                  >
+                    {currentSong?.id === song.id && isPlaying ? <Pause className="fill-black w-4 h-4 md:w-5 md:h-5" /> : <Play className="fill-black w-4 h-4 md:w-5 md:h-5 ml-0.5" />}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <h3 className="truncate font-bold text-white tracking-tight text-sm">{song.name}</h3>
+                  <p className="text-xs text-zinc-400 tracking-tighter font-medium truncate">{song.artist}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setAddToPlaylistSongId(addToPlaylistSongId === song.id ? null : song.id); }}
+                    className="mt-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-primary transition-colors flex items-center gap-1"
+                  >
+                    <Plus size={9} /> Add to Playlist
+                  </button>
+                  {addToPlaylistSongId === song.id && (
+                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-zinc-900 border border-white/10 rounded-xl p-2 z-10 shadow-xl">
+                      {playlists.length === 0 ? (
+                        <p className="text-[9px] text-zinc-500 text-center py-1">No playlists yet</p>
+                      ) : (
+                        playlists.map((pl) => (
+                          <button
+                            key={pl.id}
+                            onClick={(e) => { e.stopPropagation(); handleAddToPlaylist(pl.id); }}
+                            className="w-full text-left text-[10px] px-2 py-1.5 rounded hover:bg-white/5 text-zinc-300 hover:text-white transition-colors truncate"
+                          >
+                            {pl.name}
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+              </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </>
           </div>
+          <div className="col-span-2 py-8 px-6 sticky top-0 h-screen flex flex-col">
+    <div className="flex flex-col gap-4 w-full h-full">
+      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 text-center">My Collections</h3>
+      <div className="relative">
+        <input
+          type="text"
+          value={newPlaylistName}
+          onChange={(e) => setNewPlaylistName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
+          placeholder="New Playlist..."
+          className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-3 pr-10 text-sm focus:border-primary outline-none transition-all"
+        />
+        <button onClick={handleCreatePlaylist} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary">
+          <Plus size={18} />
+        </button>
+      </div>
+      <div className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
+        {playlists.length === 0 && (
+          <p className="text-[10px] text-zinc-600 uppercase tracking-widest text-center mt-4">No collections yet.</p>
+        )}
+        {playlists.map((pl) => (
+          <div key={pl.id} className="group flex flex-col gap-1 p-3.5 rounded-xl bg-white/[0.03] border border-transparent hover:border-white/10 hover:bg-white/[0.05] transition-all">
+            {editingPlaylistId === pl.id ? (
+              <div className="flex items-center gap-2">
+                <input autoFocus className="bg-black border border-primary/50 rounded px-2 py-1 text-[11px] w-full outline-none" value={editPlaylistValue} onChange={(e) => setEditPlaylistValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && savePlaylistEdit(pl.id)} />
+                <button onClick={() => savePlaylistEdit(pl.id)} className="text-primary"><Check size={14}/></button>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2 truncate cursor-pointer" onClick={() => { handleOpenPlaylist(pl); setMobileTab("songs"); }}>
+                  <Music2 size={14} className={`shrink-0 transition-colors ${activePlaylist?.id === pl.id ? 'text-primary' : 'text-zinc-500'}`} />
+                  <span className={`text-sm font-semibold truncate transition-colors ${activePlaylist?.id === pl.id ? 'text-primary' : ''}`}>{pl.name}</span>
+                </div>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => { setEditingPlaylistId(pl.id); setEditPlaylistValue(pl.name); }} className="text-zinc-500 hover:text-white"><Edit2 size={12}/></button>
+                  <button onClick={() => handleDeletePlaylist(pl.id)} className="text-zinc-500 hover:text-red-500"><Trash2 size={12}/></button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+          </div>
+        </div>
+
+        {/* ── MOBILE CONTENT ──────────────────────────────────── */}
+        <div className="md:hidden pb-40">
+          {mobileTab === "songs" && (
+            <div className="px-4 pt-4">
+      <>
+        {activePlaylist ? (
+          <>
+            <button onClick={handleClosePlaylist} className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors mb-6 group">
+              <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-widest">All Songs</span>
+            </button>
+            <p className="font-sans text-primary tracking-tighter uppercase text-xl md:text-2xl drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]">Collection</p>
+            <p className="font-sans font-black tracking-tighter uppercase text-5xl md:text-9xl leading-none mb-6 md:mb-0">
+              {activePlaylist.name.toUpperCase()}
+            </p>
+            {playlistSongs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <Music2 className="w-12 h-12 text-zinc-700" />
+                <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">No Songs in Playlist</p>
+                <p className="text-zinc-700 text-[10px]">Add songs from the main vault</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 w-full py-8 md:py-15 gap-4 md:gap-8">
+                {playlistSongs.map((song) => (
+              <div key={song.id} onClick={() => handleCardClick(song)} className="group relative w-full rounded-xl bg-zinc-900/40 p-3 md:p-4 transition-all duration-300 hover:bg-zinc-800/60 border border-white/5 cursor-pointer">
+                <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg bg-zinc-800">
+                  {song.cover_path ? (
+                    <img src={song.cover_path} alt={song.name} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <Music2 className="absolute inset-0 m-auto w-8 h-8 md:w-12 md:h-12 text-zinc-700 group-hover:text-primary transition-colors" />
+                  )}
+                  <div
+                    onClick={(e) => togglePlay(song, e)}
+                    className={`absolute bottom-2 right-2 flex h-10 w-10 md:h-12 md:w-12 cursor-pointer items-center justify-center rounded-full bg-primary shadow-xl transition-all duration-300 ${currentSong?.id === song.id ? 'opacity-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'} hover:scale-105 active:scale-95 text-black`}
+                  >
+                    {currentSong?.id === song.id && isPlaying ? <Pause className="fill-black w-4 h-4 md:w-5 md:h-5" /> : <Play className="fill-black w-4 h-4 md:w-5 md:h-5 ml-0.5" />}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <h3 className="truncate font-bold text-white tracking-tight text-sm">{song.name}</h3>
+                  <p className="text-xs text-zinc-400 tracking-tighter font-medium truncate">{song.artist}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRemoveFromPlaylist(song.id); }}
+                    className="mt-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-600 hover:text-red-500 transition-colors flex items-center gap-1"
+                  >
+                    <Trash2 size={9} /> Remove
+                  </button>
+                </div>
+              </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="font-sans text-primary tracking-tighter uppercase text-xl md:text-2xl drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]">Daily Discovery</p>
+            <p className="font-sans font-black tracking-tighter uppercase text-5xl md:text-9xl leading-none">YOUR PULSE.</p>
+            {displayedSongs.length === 0 && searchQuery ? (
+              <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <Search className="w-12 h-12 text-zinc-700" />
+                <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">No results for "{searchQuery}"</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 w-full py-8 md:py-15 gap-4 md:gap-8 content-start">
+                {displayedSongs.map((song) => (
+              <div key={song.id} onClick={() => handleCardClick(song)} className="group relative w-full rounded-xl bg-zinc-900/40 p-3 md:p-4 transition-all duration-300 hover:bg-zinc-800/60 border border-white/5 cursor-pointer">
+                <div className="relative aspect-square overflow-hidden rounded-lg shadow-lg bg-zinc-800">
+                  {song.cover_path ? (
+                    <img src={song.cover_path} alt={song.name} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <Music2 className="absolute inset-0 m-auto w-8 h-8 md:w-12 md:h-12 text-zinc-700 group-hover:text-primary transition-colors" />
+                  )}
+                  <div
+                    onClick={(e) => togglePlay(song, e)}
+                    className={`absolute bottom-2 right-2 flex h-10 w-10 md:h-12 md:w-12 cursor-pointer items-center justify-center rounded-full bg-primary shadow-xl transition-all duration-300 ${currentSong?.id === song.id ? 'opacity-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'} hover:scale-105 active:scale-95 text-black`}
+                  >
+                    {currentSong?.id === song.id && isPlaying ? <Pause className="fill-black w-4 h-4 md:w-5 md:h-5" /> : <Play className="fill-black w-4 h-4 md:w-5 md:h-5 ml-0.5" />}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <h3 className="truncate font-bold text-white tracking-tight text-sm">{song.name}</h3>
+                  <p className="text-xs text-zinc-400 tracking-tighter font-medium truncate">{song.artist}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setAddToPlaylistSongId(addToPlaylistSongId === song.id ? null : song.id); }}
+                    className="mt-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-primary transition-colors flex items-center gap-1"
+                  >
+                    <Plus size={9} /> Add to Playlist
+                  </button>
+                  {addToPlaylistSongId === song.id && (
+                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-zinc-900 border border-white/10 rounded-xl p-2 z-10 shadow-xl">
+                      {playlists.length === 0 ? (
+                        <p className="text-[9px] text-zinc-500 text-center py-1">No playlists yet</p>
+                      ) : (
+                        playlists.map((pl) => (
+                          <button
+                            key={pl.id}
+                            onClick={(e) => { e.stopPropagation(); handleAddToPlaylist(pl.id); }}
+                            className="w-full text-left text-[10px] px-2 py-1.5 rounded hover:bg-white/5 text-zinc-300 hover:text-white transition-colors truncate"
+                          >
+                            {pl.name}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </>
+            </div>
+          )}
+          {mobileTab === "playlists" && (
+            <div className="px-4 pt-4 min-h-screen">
+    <div className="flex flex-col gap-4 w-full h-full">
+      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 text-center">My Collections</h3>
+      <div className="relative">
+        <input
+          type="text"
+          value={newPlaylistName}
+          onChange={(e) => setNewPlaylistName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
+          placeholder="New Playlist..."
+          className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-3 pr-10 text-sm focus:border-primary outline-none transition-all"
+        />
+        <button onClick={handleCreatePlaylist} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary">
+          <Plus size={18} />
+        </button>
+      </div>
+      <div className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
+        {playlists.length === 0 && (
+          <p className="text-[10px] text-zinc-600 uppercase tracking-widest text-center mt-4">No collections yet.</p>
+        )}
+        {playlists.map((pl) => (
+          <div key={pl.id} className="group flex flex-col gap-1 p-3.5 rounded-xl bg-white/[0.03] border border-transparent hover:border-white/10 hover:bg-white/[0.05] transition-all">
+            {editingPlaylistId === pl.id ? (
+              <div className="flex items-center gap-2">
+                <input autoFocus className="bg-black border border-primary/50 rounded px-2 py-1 text-[11px] w-full outline-none" value={editPlaylistValue} onChange={(e) => setEditPlaylistValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && savePlaylistEdit(pl.id)} />
+                <button onClick={() => savePlaylistEdit(pl.id)} className="text-primary"><Check size={14}/></button>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2 truncate cursor-pointer" onClick={() => { handleOpenPlaylist(pl); setMobileTab("songs"); }}>
+                  <Music2 size={14} className={`shrink-0 transition-colors ${activePlaylist?.id === pl.id ? 'text-primary' : 'text-zinc-500'}`} />
+                  <span className={`text-sm font-semibold truncate transition-colors ${activePlaylist?.id === pl.id ? 'text-primary' : ''}`}>{pl.name}</span>
+                </div>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => { setEditingPlaylistId(pl.id); setEditPlaylistValue(pl.name); }} className="text-zinc-500 hover:text-white"><Edit2 size={12}/></button>
+                  <button onClick={() => handleDeletePlaylist(pl.id)} className="text-zinc-500 hover:text-red-500"><Trash2 size={12}/></button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+            </div>
+          )}
+          {mobileTab === "soulmate" && (
+            <div className="px-4 pt-4">
+    <div className="flex flex-col gap-4 w-full">
+      <div className="w-full flex flex-col items-center gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/5">
+        <p className="text-xs font-black uppercase tracking-widest text-zinc-400 text-center">Pulse Visibility</p>
+        <button
+          onClick={toggleDiscoverable}
+          className={`relative w-16 h-8 rounded-full transition-colors duration-300 ${isDiscoverable ? 'bg-primary' : 'bg-zinc-700'}`}
+        >
+          <span className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow transition-transform duration-300 ${isDiscoverable ? 'translate-x-8' : 'translate-x-0'}`} />
+        </button>
+        <p className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isDiscoverable ? 'text-primary' : 'text-zinc-600'}`}>
+          {isDiscoverable ? 'Visible' : 'Hidden'}
+        </p>
+        <p className="text-[10px] text-zinc-500 text-center leading-relaxed">
+          {isDiscoverable ? 'Others can find you as a soulmate' : 'You are hidden from soulmate search'}
+        </p>
+      </div>
+      <button
+        onClick={findSoulmates}
+        className="w-full flex flex-col items-center gap-3 p-5 rounded-2xl bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all group"
+      >
+        <Heart size={26} className="text-primary group-hover:scale-110 transition-transform" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center leading-relaxed">Find Music<br/>Soulmate</p>
+      </button>
+    </div>
+            </div>
+          )}
         </div>
       </main>
       
@@ -781,37 +1024,37 @@ export default function Page() {
       )}
 
       {/* FULL PLAYER OVERLAY */}
-      <div className={`fixed inset-0 z-50 bg-black transition-transform duration-500 ease-in-out ${showFullPlayer ? "translate-y-0" : "translate-y-full"}`}>
-        <div className="h-full w-full flex flex-col p-10 max-w-7xl mx-auto">
-          <button onClick={() => setShowFullPlayer(false)} className="flex items-center gap-2 text-zinc-400 hover:text-white mb-10">
+      <div className={`fixed inset-0 z-[65] bg-black transition-transform duration-500 ease-in-out ${showFullPlayer ? "translate-y-0" : "translate-y-full"}`}>
+        <div className="h-full w-full flex flex-col px-6 md:px-16 pt-6 md:pt-10" style={{paddingBottom: "calc(96px + 1.5rem)"}}>
+          <button onClick={() => setShowFullPlayer(false)} className="flex items-center gap-2 text-zinc-400 hover:text-white mb-3 md:mb-8 shrink-0">
             <ArrowLeft className="w-6 h-6" />
             <span className="uppercase font-bold tracking-widest text-sm">Return</span>
           </button>
           
-          <div className="flex-1 flex gap-16 items-center">
-            <div className="w-1/2 flex flex-col items-center">
-              <div className="w-full max-w-[500px] aspect-square bg-zinc-900 rounded-3xl shadow-2xl flex items-center justify-center border border-white/10 mb-8 overflow-hidden relative">
+          <div className="flex-1 flex flex-col md:flex-row gap-6 md:gap-10 min-h-0 overflow-hidden">
+            <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0">
+              <div className="aspect-square bg-zinc-900 rounded-3xl shadow-2xl flex items-center justify-center border border-white/10 mb-4 md:mb-6 overflow-hidden relative" style={{width: "min(42vh, 440px)", flexShrink: 0}}>
                 {currentSong?.cover_path ? (
                   <img src={currentSong.cover_path} alt={currentSong.name} className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
                   <Disc className={`w-40 h-40 text-primary/20 ${isPlaying ? 'animate-spin-slow' : ''}`} />
                 )}
-                <button onClick={() => currentSong && togglePlay(currentSong)} className="absolute inset-0 m-auto w-20 h-20 bg-primary/80 backdrop-blur-sm rounded-full flex items-center justify-center text-black hover:scale-110 transition-transform">
+                <button onClick={() => currentSong && togglePlay(currentSong)} className="absolute inset-0 m-auto w-14 h-14 md:w-20 md:h-20 bg-primary/80 backdrop-blur-sm rounded-full flex items-center justify-center text-black hover:scale-110 transition-transform">
                    {isPlaying ? <Pause className="fill-black w-8 h-8" /> : <Play className="fill-black w-8 h-8 ml-2" />}
                 </button>
               </div>
-              <h2 className="text-6xl font-black italic uppercase tracking-tighter">{currentSong?.name || "No Track Selected"}</h2>
-              <p className="text-2xl text-primary font-bold uppercase tracking-widest opacity-80">{currentSong?.artist || "Unknown Artist"}</p>
+              <h2 className="text-xl md:text-4xl lg:text-6xl font-black italic uppercase tracking-tighter text-center leading-tight">{currentSong?.name || "No Track Selected"}</h2>
+              <p className="text-sm md:text-xl lg:text-2xl text-primary font-bold uppercase tracking-widest opacity-80 text-center">{currentSong?.artist || "Unknown Artist"}</p>
             </div>            
 
             {/* COMMENT SECTION PANEL */}
-            <div className="w-1/2 bg-zinc-900/30 rounded-3xl h-[600px] border border-white/5 backdrop-blur-sm flex flex-col overflow-hidden">
-                <div className="p-6 border-b border-white/5 flex items-center justify-between">
+            <div className="w-full md:w-1/2 bg-zinc-900/30 rounded-3xl border border-white/5 backdrop-blur-sm flex flex-col overflow-hidden" style={{height: "min(70vh, 600px)", minHeight: "300px"}}>
+                <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between shrink-0">
                   <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.5em]">Pulse Insights</p>
                   <MessageSquare size={16} className="text-primary" />
                 </div>
 
-                <div className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar">
+                <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-3 no-scrollbar min-h-0">
                   {comments.map((comment) => (
                     <div key={comment.id} className="animate-in fade-in slide-in-from-bottom-2">
                       <div className="flex justify-between items-start mb-1">
@@ -856,7 +1099,7 @@ export default function Page() {
                   )}
                 </div>
 
-                <div className="p-6 border-t border-white/5 flex gap-3">
+                <div className="p-3 md:p-6 border-t border-white/5 flex gap-3 shrink-0">
                   <input 
                     type="text" 
                     value={newComment}
@@ -875,7 +1118,7 @@ export default function Page() {
       </div>
       
       {/* MINI PLAYER (BOTTOM BAR) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-xl border-t border-white/10 px-8 z-[60] flex flex-col">
+      <div className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-xl border-t border-white/10 px-4 md:px-8 z-[60] flex flex-col">
         {/* Seek bar — full width at top */}
         <div className="flex items-center gap-3 pt-3 pb-1">
           <span className="text-[10px] text-zinc-500 w-8 text-right tabular-nums">{formatTime(currentTime)}</span>
@@ -910,8 +1153,8 @@ export default function Page() {
           <button onClick={(e) => { e.stopPropagation(); currentSong && togglePlay(currentSong); }} className="h-10 w-10 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 active:scale-95 transition-transform shrink-0">
             {isPlaying ? <Pause className="w-4 h-4 fill-black" /> : <Play className="w-4 h-4 fill-black ml-0.5" />}
           </button>
-          {/* Volume */}
-          <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {/* Volume — hidden on mobile */}
+          <div className="hidden md:flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
             <button onClick={handleToggleMute} className="text-zinc-500 hover:text-white transition-colors">
               {isMuted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
             </button>
@@ -922,7 +1165,7 @@ export default function Page() {
               style={{ background: `linear-gradient(to right, var(--primary) ${(isMuted ? 0 : volume)*100}%, #3f3f46 ${(isMuted ? 0 : volume)*100}%)` }}
             />
           </div>
-          <div onClick={() => setShowFullPlayer(true)} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-primary transition-colors cursor-pointer shrink-0">Expand</div>
+          <div onClick={() => setShowFullPlayer(true)} className="hidden md:block text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-primary transition-colors cursor-pointer shrink-0">Expand</div>
         </div>
       </div>
     </div>
