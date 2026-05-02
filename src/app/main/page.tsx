@@ -1031,9 +1031,9 @@ export default function Page() {
             <span className="uppercase font-bold tracking-widest text-sm">Return</span>
           </button>
           
-          <div className="flex-1 flex flex-col md:flex-row gap-6 md:gap-10 min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-10 min-h-0 overflow-y-auto">
             <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0">
-              <div className="aspect-square bg-zinc-900 rounded-3xl shadow-2xl flex items-center justify-center border border-white/10 mb-4 md:mb-6 overflow-hidden relative" style={{width: "min(42vh, 440px)", flexShrink: 0}}>
+              <div className="aspect-square bg-zinc-900 rounded-3xl shadow-2xl flex items-center justify-center border border-white/10 mb-3 md:mb-6 overflow-hidden relative" style={{width: "min(56vw, 440px)", flexShrink: 0}}>
                 {currentSong?.cover_path ? (
                   <img src={currentSong.cover_path} alt={currentSong.name} className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
@@ -1048,7 +1048,7 @@ export default function Page() {
             </div>            
 
             {/* COMMENT SECTION PANEL */}
-            <div className="w-full md:w-1/2 bg-zinc-900/30 rounded-3xl border border-white/5 backdrop-blur-sm flex flex-col overflow-hidden" style={{height: "min(70vh, 600px)", minHeight: "300px"}}>
+            <div className="w-full md:w-1/2 bg-zinc-900/30 rounded-3xl border border-white/5 backdrop-blur-sm flex flex-col overflow-hidden flex-1 md:flex-none" style={{minHeight: "300px"}}>
                 <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between shrink-0">
                   <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.5em]">Pulse Insights</p>
                   <MessageSquare size={16} className="text-primary" />
