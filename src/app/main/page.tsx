@@ -518,7 +518,7 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{user}</span>
+            <span className="text-[10px] font-black tracking-widest text-zinc-500">{user}</span>
             <button onClick={handleLogout} className="flex items-center justify-center w-10 h-10 bg-primary rounded-full text-black hover:scale-105 active:scale-95 transition-transform">
               <LogOut className="w-4 h-4" />
             </button>
@@ -532,7 +532,7 @@ export default function Page() {
             <span className="italic uppercase tracking-tighter">Disc-Overy</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{user}</span>
+            <span className="text-[10px] font-black tracking-widest text-zinc-500">{user}</span>
             <button onClick={handleLogout} className="flex items-center justify-center w-8 h-8 bg-primary rounded-full text-black">
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -992,11 +992,11 @@ export default function Page() {
                     <span className="text-[9px] font-black text-zinc-600 w-4 shrink-0">#{i + 1}</span>
                     {/* Avatar placeholder */}
                     <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-black text-primary uppercase">{match.username[0]}</span>
+                      <span className="text-[10px] font-black text-primary">{match.username[0]}</span>
                     </div>
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black uppercase tracking-wider truncate">{match.username}</p>
+                      <p className="text-xs font-black tracking-wider truncate">{match.username}</p>
                       {match.commonSongs.length > 0 && (
                         <p className="text-[8px] text-zinc-500 truncate mt-0.5">
                           {match.commonSongs.join(" · ")}
@@ -1059,7 +1059,7 @@ export default function Page() {
                     <div key={comment.id} className="animate-in fade-in slide-in-from-bottom-2">
                       <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black text-primary uppercase">{comment.users?.username}</span>
+                          <span className="text-[10px] font-black text-primary">{comment.users?.username}</span>
                           <span className="text-[9px] text-zinc-600">{new Date(comment.created_at).toLocaleDateString()}</span>
                           {comment.is_edited && <span className="text-[8px] text-zinc-500 italic">Edited</span>}
                         </div>
