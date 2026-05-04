@@ -23,6 +23,8 @@ import {
   X,
   Menu,
   ListMusic,
+  SkipBack,
+  SkipForward,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase"; 
@@ -74,6 +76,12 @@ export default function Page() {
   const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const songsRef = useRef<Song[]>([]);
+  const playlistSongsRef = useRef<Song[]>([]);
+  const activePlaylistRef = useRef<Playlist | null>(null);
+  const autoSkipRef = useRef(true);
+  const volumeRef = useRef(1);
+  const isSeekingRef = useRef(false);
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState("");
@@ -97,6 +105,13 @@ export default function Page() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+  const [autoSkip, setAutoSkip] = useState(true);
+  // Keep refs in sync with state so audio callbacks never capture stale values
+  useEffect(() => { autoSkipRef.current = autoSkip; }, [autoSkip]);
+
+  // viewingSong = song whose comments/insights are shown in the full player
+  // currentSong = song that is actually loaded in the audio engine
+  const [viewingSong, setViewingSong] = useState<Song | null>(null);
 
   // Mobile
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -115,7 +130,10 @@ export default function Page() {
       .from("music_vault")
       .select("*")
       .order("name", { ascending: true });
-    if (!error && data) setSongs(data);
+    if (!error && data) {
+      setSongs(data);
+      songsRef.current = data;
+    }
   };
 
   const fetchUserData = async (username: string) => {
@@ -268,19 +286,23 @@ export default function Page() {
       .select("song_id, music_vault(*)")
       .eq("playlist_id", playlistId);
     if (!error && data) {
-      const songs = data.map((row: any) => row.music_vault).filter(Boolean);
-      setPlaylistSongs(songs);
+      const fetched = data.map((row: any) => row.music_vault).filter(Boolean);
+      setPlaylistSongs(fetched);
+      playlistSongsRef.current = fetched;
     }
   };
 
   const handleOpenPlaylist = (pl: Playlist) => {
     setActivePlaylist(pl);
+    activePlaylistRef.current = pl;
     fetchPlaylistSongs(pl.id);
   };
 
   const handleClosePlaylist = () => {
     setActivePlaylist(null);
+    activePlaylistRef.current = null;
     setPlaylistSongs([]);
+    playlistSongsRef.current = [];
   };
 
   const handleRemoveFromPlaylist = async (songId: string) => {
@@ -310,11 +332,15 @@ export default function Page() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // Fetch comments whenever the active song changes
+  // Fetch comments for the song being VIEWED (not necessarily the playing one)
   useEffect(() => {
-    if (currentSong) {
-      fetchComments(currentSong.id);
-    }
+    if (viewingSong) fetchComments(viewingSong.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingSong]);
+
+  // When a new song starts playing, sync viewingSong to it if player is closed
+  useEffect(() => {
+    if (currentSong && !showFullPlayer) setViewingSong(currentSong);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSong]);
 
@@ -325,24 +351,19 @@ export default function Page() {
   };
 
   const handlePostComment = async () => {
-    console.log("[handlePostComment] newComment:", newComment, "| currentSong:", currentSong, "| userId:", userId);
-    if (!newComment.trim() || !currentSong || !userId) {
-      console.warn("[handlePostComment] Blocked — missing:", { hasComment: !!newComment.trim(), hasSong: !!currentSong, hasUserId: !!userId });
-      return;
-    }
-    const { data, error } = await supabase.from("comments").insert([
-      { content: newComment, user_id: userId, song_id: currentSong.id }
+    if (!newComment.trim() || !viewingSong || !userId) return;
+    const { error } = await supabase.from("comments").insert([
+      { content: newComment, user_id: userId, song_id: viewingSong.id }
     ]).select();
-    console.log("[handlePostComment] insert result — data:", data, "| error:", error);
     if (!error) {
       setNewComment("");
-      fetchComments(currentSong.id);
+      fetchComments(viewingSong.id);
     }
   };
 
   const handleDeleteComment = async (id: number) => {
     const { error } = await supabase.from("comments").delete().eq("id", id);
-    if (!error) fetchComments(currentSong!.id);
+    if (!error) fetchComments(viewingSong!.id);
   };
 
   const handleUpdateComment = async (id: number) => {
@@ -354,23 +375,56 @@ export default function Page() {
     
     if (!error) {
       setEditingCommentId(null);
-      fetchComments(currentSong!.id);
+      fetchComments(viewingSong!.id);
     }
   };
 
-  const loadSong = useCallback((song: Song) => {
-    if (audioRef.current) audioRef.current.pause();
+  // Core audio loader — uses refs so callbacks are never stale
+  const playSong = (song: Song, andPlay = true) => {
+    // Nuke existing audio completely before creating new one
+    if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.ontimeupdate = null;
+      audioRef.current.ondurationchange = null;
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current.load();
+      audioRef.current = null;
+    }
+
     setCurrentSong(song);
+    setViewingSong(prev => prev?.id === song.id ? prev : song);
     setCurrentTime(0);
     setDuration(0);
-    const newAudio = new Audio(song.file_path);
-    newAudio.volume = volume;
-    newAudio.ontimeupdate = () => { if (!isSeeking) setCurrentTime(newAudio.currentTime); };
-    newAudio.ondurationchange = () => setDuration(newAudio.duration);
-    newAudio.onended = () => setIsPlaying(false);
-    audioRef.current = newAudio;
-    return newAudio;
-  }, [volume, isSeeking]);
+
+    const audio = new Audio(song.file_path);
+    audio.volume = volumeRef.current;
+    audioRef.current = audio;
+
+    audio.ontimeupdate = () => {
+      if (!isSeekingRef.current) setCurrentTime(audio.currentTime);
+    };
+    audio.ondurationchange = () => setDuration(audio.duration);
+    audio.onended = () => {
+      setIsPlaying(false);
+      if (!autoSkipRef.current) return;
+      // Use playlist order if inside a playlist, otherwise full vault
+      const list = activePlaylistRef.current && playlistSongsRef.current.length > 0
+        ? playlistSongsRef.current
+        : songsRef.current;
+      const idx = list.findIndex(s => s.id === song.id);
+      const next = list[idx + 1];
+      if (next) setTimeout(() => playSong(next, true), 300);
+    };
+
+    if (andPlay) {
+      audio.play().catch(console.error);
+      setIsPlaying(true);
+    }
+  };
+
+  // Kept for any remaining callers — wraps playSong
+  const loadSong = (song: Song) => { playSong(song, false); };
 
   const togglePlay = (song: Song, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -379,25 +433,50 @@ export default function Page() {
         audioRef.current?.pause();
         setIsPlaying(false);
       } else {
-        audioRef.current?.play();
+        audioRef.current?.play().catch(console.error);
         setIsPlaying(true);
       }
     } else {
-      const newAudio = loadSong(song);
-      newAudio.play().catch((err) => console.error("Playback failed:", err));
-      setIsPlaying(true);
+      playSong(song, true);
     }
   };
 
-  // Load song into player without playing (for comments view)
+  const getActiveList = () =>
+    activePlaylistRef.current && playlistSongsRef.current.length > 0
+      ? playlistSongsRef.current
+      : songsRef.current;
+
+  const skipToNext = () => {
+    const list = getActiveList();
+    const idx = list.findIndex(s => s.id === currentSong?.id);
+    const next = list[idx + 1];
+    if (next) playSong(next, true);
+  };
+
+  const skipToPrev = () => {
+    const list = getActiveList();
+    const idx = list.findIndex(s => s.id === currentSong?.id);
+    if (audioRef.current && audioRef.current.currentTime > 3) {
+      audioRef.current.currentTime = 0;
+      setCurrentTime(0);
+    } else {
+      const prev = list[idx - 1];
+      if (prev) playSong(prev, true);
+    }
+  };
+
+  // FIX 3: Card click — only change what's VIEWED, never interrupt playing audio
   const handleCardClick = (song: Song) => {
-    if (currentSong?.id !== song.id) loadSong(song);
+    setViewingSong(song);
     setShowFullPlayer(true);
+    // Fetch comments for the viewed song (not the playing one)
+    fetchComments(song.id);
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value);
     setVolume(v);
+    volumeRef.current = v;
     setIsMuted(v === 0);
     if (audioRef.current) audioRef.current.volume = v;
   };
@@ -405,7 +484,8 @@ export default function Page() {
   const handleToggleMute = () => {
     if (!audioRef.current) return;
     if (isMuted) {
-      audioRef.current.volume = volume || 0.5;
+      const v = volumeRef.current || 0.5;
+      audioRef.current.volume = v;
       setIsMuted(false);
     } else {
       audioRef.current.volume = 0;
@@ -1025,30 +1105,34 @@ export default function Page() {
 
       {/* FULL PLAYER OVERLAY */}
       <div className={`fixed inset-0 z-[65] bg-black transition-transform duration-500 ease-in-out ${showFullPlayer ? "translate-y-0" : "translate-y-full"}`}>
-        <div className="h-full w-full flex flex-col px-6 md:px-16 pt-6 md:pt-10" style={{paddingBottom: "calc(96px + 1.5rem)"}}>
+        <div className="h-full w-full flex flex-col px-6 md:px-16 pt-6 md:pt-10 overflow-hidden" style={{paddingBottom: "calc(96px + 1.5rem)"}}>
           <button onClick={() => setShowFullPlayer(false)} className="flex items-center gap-2 text-zinc-400 hover:text-white mb-3 md:mb-8 shrink-0">
             <ArrowLeft className="w-6 h-6" />
             <span className="uppercase font-bold tracking-widest text-sm">Return</span>
           </button>
           
-          <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-10 min-h-0 overflow-y-auto">
-            <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0">
-              <div className="aspect-square bg-zinc-900 rounded-3xl shadow-2xl flex items-center justify-center border border-white/10 mb-3 md:mb-6 overflow-hidden relative" style={{width: "min(56vw, 440px)", flexShrink: 0}}>
-                {currentSong?.cover_path ? (
-                  <img src={currentSong.cover_path} alt={currentSong.name} className="absolute inset-0 w-full h-full object-cover" />
+          <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-10 min-h-0">
+            <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0 h-full">
+              <div className="bg-zinc-900 rounded-2xl md:rounded-3xl shadow-2xl flex items-center justify-center border border-white/10 mb-3 md:mb-5 overflow-hidden relative w-full md:w-auto" style={{aspectRatio:"1/1", width: "min(80vw, min(60vh, 460px))", flexShrink: 0}}>
+                {viewingSong?.cover_path ? (
+                  <img src={viewingSong.cover_path} alt={viewingSong.name} className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
                   <Disc className={`w-40 h-40 text-primary/20 ${isPlaying ? 'animate-spin-slow' : ''}`} />
                 )}
-                <button onClick={() => currentSong && togglePlay(currentSong)} className="absolute inset-0 m-auto w-14 h-14 md:w-20 md:h-20 bg-primary/80 backdrop-blur-sm rounded-full flex items-center justify-center text-black hover:scale-110 transition-transform">
-                   {isPlaying ? <Pause className="fill-black w-8 h-8" /> : <Play className="fill-black w-8 h-8 ml-2" />}
-                </button>
               </div>
-              <h2 className="text-xl md:text-4xl lg:text-6xl font-black italic uppercase tracking-tighter text-center leading-tight">{currentSong?.name || "No Track Selected"}</h2>
-              <p className="text-sm md:text-xl lg:text-2xl text-primary font-bold uppercase tracking-widest opacity-80 text-center">{currentSong?.artist || "Unknown Artist"}</p>
+              <h2 className="text-xl md:text-4xl lg:text-6xl font-black italic uppercase tracking-tighter text-center leading-tight">{viewingSong?.name || "No Track Selected"}</h2>
+              <p className="text-sm md:text-xl lg:text-2xl text-primary font-bold uppercase tracking-widest opacity-80 text-center">{viewingSong?.artist || "Unknown Artist"}</p>
+              {/* Show a subtle "now playing" indicator if viewing a different song than playing */}
+              {currentSong && viewingSong && currentSong.id !== viewingSong.id && (
+                <div className="mt-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                  <Music2 size={10} className="text-primary animate-pulse" />
+                  Now Playing: {currentSong.name}
+                </div>
+              )}
             </div>            
 
             {/* COMMENT SECTION PANEL */}
-            <div className="w-full md:w-1/2 bg-zinc-900/30 rounded-3xl border border-white/5 backdrop-blur-sm flex flex-col overflow-hidden flex-1 md:flex-none" style={{minHeight: "300px"}}>
+            <div className="w-full md:w-1/2 bg-zinc-900/30 rounded-3xl border border-white/5 backdrop-blur-sm flex flex-col overflow-hidden h-full" style={{minHeight: "300px"}}>
                 <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between shrink-0">
                   <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.5em]">Pulse Insights</p>
                   <MessageSquare size={16} className="text-primary" />
@@ -1125,10 +1209,10 @@ export default function Page() {
           <input
             type="range" min={0} max={duration || 0} step={0.1} value={currentTime}
             onChange={handleSeekChange}
-            onMouseDown={() => setIsSeeking(true)}
-            onMouseUp={handleSeekCommit}
-            onTouchStart={() => setIsSeeking(true)}
-            onTouchEnd={handleSeekCommit}
+            onMouseDown={() => { setIsSeeking(true); isSeekingRef.current = true; }}
+            onMouseUp={() => { isSeekingRef.current = false; handleSeekCommit(); }}
+            onTouchStart={() => { setIsSeeking(true); isSeekingRef.current = true; }}
+            onTouchEnd={() => { isSeekingRef.current = false; handleSeekCommit(); }}
             onClick={(e) => e.stopPropagation()}
             className="flex-1 h-1 accent-primary cursor-pointer"
             style={{ background: duration ? `linear-gradient(to right, var(--primary) ${(currentTime/duration)*100}%, #3f3f46 ${(currentTime/duration)*100}%)` : '#3f3f46' }}
@@ -1149,10 +1233,18 @@ export default function Page() {
               <p className="text-xs text-zinc-400 truncate">{currentSong?.artist || ""}</p>
             </div>
           </div>
-          {/* Play/pause */}
-          <button onClick={(e) => { e.stopPropagation(); currentSong && togglePlay(currentSong); }} className="h-10 w-10 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 active:scale-95 transition-transform shrink-0">
-            {isPlaying ? <Pause className="w-4 h-4 fill-black" /> : <Play className="w-4 h-4 fill-black ml-0.5" />}
-          </button>
+          {/* Prev / Play / Next */}
+          <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button onClick={skipToPrev} className="h-8 w-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-white transition-colors">
+              <SkipBack className="w-4 h-4 fill-current" />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); currentSong && togglePlay(currentSong); }} className="h-10 w-10 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 active:scale-95 transition-transform">
+              {isPlaying ? <Pause className="w-4 h-4 fill-black" /> : <Play className="w-4 h-4 fill-black ml-0.5" />}
+            </button>
+            <button onClick={skipToNext} className="h-8 w-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-white transition-colors">
+              <SkipForward className="w-4 h-4 fill-current" />
+            </button>
+          </div>
           {/* Volume — hidden on mobile */}
           <div className="hidden md:flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
             <button onClick={handleToggleMute} className="text-zinc-500 hover:text-white transition-colors">
@@ -1164,6 +1256,16 @@ export default function Page() {
               className="w-20 h-1 accent-primary cursor-pointer"
               style={{ background: `linear-gradient(to right, var(--primary) ${(isMuted ? 0 : volume)*100}%, #3f3f46 ${(isMuted ? 0 : volume)*100}%)` }}
             />
+          </div>
+          <div className="hidden md:flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setAutoSkip(p => !p)}
+              title={autoSkip ? "Auto-skip on" : "Auto-skip off"}
+              className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-widest transition-colors ${autoSkip ? 'text-primary' : 'text-zinc-600'}`}
+            >
+              <SkipForward size={12} />
+              Auto
+            </button>
           </div>
           <div onClick={() => setShowFullPlayer(true)} className="hidden md:block text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-primary transition-colors cursor-pointer shrink-0">Expand</div>
         </div>
